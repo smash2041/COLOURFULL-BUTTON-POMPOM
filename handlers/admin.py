@@ -418,13 +418,16 @@ async def _show_edit_products(update, context):
     return EP_SELECT
 
 
-async def _ep_select(update, context):
+async def _ep_select(update, context, override_product_id=None):
     main_db = _get_products_write_db(context)
     query = update.callback_query
     await query.answer()
     if query.data == "adm_back":
         return await _show_admin_menu(update, context)
-    product_id = int(query.data.split("_")[2])
+    if override_product_id is not None:
+        product_id = override_product_id
+    else:
+        product_id = int(query.data.split("_")[2])
     product = await main_db.get_product(product_id)
     if not product:
         await query.answer("❌ Product not found.", show_alert=True)
@@ -466,8 +469,7 @@ async def _ep_field(update, context):
         new_status = 0 if product.get("is_active") else 1
         await main_db.update_product(product_id, is_active=new_status)
         await query.answer(f"Product is now {'Active ✅' if new_status else 'Inactive ❌'}", show_alert=True)
-        query.data = f"adm_ep_{product_id}"
-        return await _ep_select(update, context)
+        return await _ep_select(update, context, override_product_id=product_id)
     if field == "color":
         product = await main_db.get_product(product_id)
         current_style = product.get("button_style", "")
@@ -513,8 +515,7 @@ async def _ep_color_select(update, context):
     await main_db.update_product(product_id, button_style=style_value)
     await query.answer(f"✅ Button color set to {style_label}", show_alert=True)
     # Go back to edit product field selection
-    query.data = f"adm_ep_{product_id}"
-    return await _ep_select(update, context)
+    return await _ep_select(update, context, override_product_id=product_id)
 
 
 async def _ep_value(update, context):
