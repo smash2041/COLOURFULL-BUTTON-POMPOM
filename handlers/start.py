@@ -60,7 +60,10 @@ async def build_product_keyboard(context) -> InlineKeyboardMarkup:
         else:
             keyboard.append([InlineKeyboardButton("📸 Proof", callback_data="show_proof")])
 
-    keyboard.append([InlineKeyboardButton("❓ How to Use", callback_data="how_to_use")])
+    # How to Use button — conditional (per-bot → main fallback)
+    htu_enabled = await get_setting_with_fallback(context, "htu_button_enabled")
+    if htu_enabled != "0":
+        keyboard.append([InlineKeyboardButton("❓ How to Use", callback_data="how_to_use")])
     keyboard.append([InlineKeyboardButton("🆘 Report an Issue", callback_data="report_issue")])
 
     return InlineKeyboardMarkup(keyboard)
@@ -167,7 +170,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     pass
 
     reply_markup = await build_product_keyboard(context)
-    await update.message.reply_text(WELCOME_TEXT, reply_markup=reply_markup, parse_mode="Markdown")
+    custom_text = await get_setting_with_fallback(context, "welcome_text")
+    welcome_text = custom_text if custom_text else WELCOME_TEXT
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 
 async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -268,12 +273,14 @@ async def back_to_products_callback(update: Update, context: ContextTypes.DEFAUL
     except Exception:
         pass
     reply_markup = await build_product_keyboard(context)
+    custom_text = await get_setting_with_fallback(context, "welcome_text")
+    welcome_text = custom_text if custom_text else WELCOME_TEXT
     try:
-        await query.edit_message_text(WELCOME_TEXT, reply_markup=reply_markup, parse_mode="Markdown")
+        await query.edit_message_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
     except Exception:
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text=WELCOME_TEXT, reply_markup=reply_markup, parse_mode="Markdown",
+            text=welcome_text, reply_markup=reply_markup, parse_mode="Markdown",
         )
 
 

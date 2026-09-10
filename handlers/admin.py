@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 MANAGE_ADMIN_MENU = 26
 MANAGE_ADMIN_INPUT = 27
 MANAGE_ADMIN_DURATION = 28
+WELCOME_TEXT_MENU = 29
+SET_WELCOME_TEXT = 30
 
 
 # ═══════════════════════════════════════════════
@@ -76,6 +78,8 @@ async def _show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fwd_status = "ON ✅" if fwd_enabled == "1" else "OFF ❌"
         disappear_enabled = await main_db.get_setting("auto_disappear")
         disappear_status = "ON ✅" if disappear_enabled == "1" else "OFF ❌"
+        htu_enabled = await main_db.get_setting("htu_button_enabled")
+        htu_status = "ON ✅" if htu_enabled != "0" else "OFF ❌"
 
         keyboard = [
             [InlineKeyboardButton("🎁 Edit Product", callback_data="adm_edit")],
@@ -84,6 +88,7 @@ async def _show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton(f"🔘 Toggle Proof Button ({proof_status})", callback_data="adm_toggle_proof")],
             [InlineKeyboardButton(f"🔒 Forward Protection ({fwd_status})", callback_data="adm_toggle_fwd")],
             [InlineKeyboardButton(f"⏱ Auto Disappear 30min ({disappear_status})", callback_data="adm_toggle_disappear")],
+            [InlineKeyboardButton(f"❓ How to Use Button ({htu_status})", callback_data="adm_toggle_htu")],
             [InlineKeyboardButton("📄 Set Proof Link", callback_data="adm_proof_link")],
             [InlineKeyboardButton("🖼 Set Proof Photo", callback_data="adm_proof_photo")],
             [InlineKeyboardButton("🎨 Set Static Button Colors", callback_data="adm_colors")],
@@ -91,6 +96,7 @@ async def _show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("💳 Set UPI", callback_data="adm_upi")],
             [InlineKeyboardButton("💳 Set QR Image", callback_data="adm_qr")],
             [InlineKeyboardButton("🎬 Set Welcome Media", callback_data="adm_welcome")],
+            [InlineKeyboardButton("📝 Welcome Text", callback_data="adm_welcome_text")],
             [InlineKeyboardButton("❓ Set How to Use", callback_data="adm_htu")],
             [InlineKeyboardButton("👥 View Users", callback_data="adm_users")],
             [InlineKeyboardButton("📊 Stats", callback_data="adm_stats")],
@@ -107,6 +113,11 @@ async def _show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             proof_enabled = await main_db.get_setting("proof_button_enabled")
         proof_status = "ON ✅" if proof_enabled == "1" else "OFF ❌"
 
+        htu_enabled = await db.get_setting("htu_button_enabled")
+        if htu_enabled is None:
+            htu_enabled = await main_db.get_setting("htu_button_enabled")
+        htu_status = "ON ✅" if htu_enabled != "0" else "OFF ❌"
+
         # Check if hosted bot has own products or using main mirror
         product_count = await db.get_product_count()
         products_source = f"Custom ({product_count})" if product_count > 0 else "Mirrored from Main"
@@ -117,11 +128,13 @@ async def _show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🗑 Remove Product", callback_data="adm_remove")],
             [InlineKeyboardButton("🔄 Reset Products to Main", callback_data="adm_reset_products")],
             [InlineKeyboardButton(f"🔘 Toggle Proof Button ({proof_status})", callback_data="adm_toggle_proof")],
+            [InlineKeyboardButton(f"❓ How to Use Button ({htu_status})", callback_data="adm_toggle_htu")],
             [InlineKeyboardButton("📄 Set Proof Link", callback_data="adm_proof_link")],
             [InlineKeyboardButton("🖼 Set Proof Photo", callback_data="adm_proof_photo")],
             [InlineKeyboardButton("💳 Set UPI", callback_data="adm_upi")],
             [InlineKeyboardButton("💳 Set QR Image", callback_data="adm_qr")],
             [InlineKeyboardButton("🎬 Set Welcome Media", callback_data="adm_welcome")],
+            [InlineKeyboardButton("📝 Welcome Text", callback_data="adm_welcome_text")],
             [InlineKeyboardButton("❓ Set How to Use", callback_data="adm_htu")],
             [InlineKeyboardButton("📢 Broadcast", callback_data="adm_broadcast")],
             [InlineKeyboardButton("👥 View Users", callback_data="adm_users")],
@@ -176,6 +189,10 @@ async def admin_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return await _toggle_setting(update, context, "forward_protection", "Forward Protection", main_only=True)
     elif data == "adm_toggle_disappear":
         return await _toggle_setting(update, context, "auto_disappear", "Auto Disappear 30min", main_only=True)
+    elif data == "adm_toggle_htu":
+        return await _toggle_setting(update, context, "htu_button_enabled", "How to Use Button")
+    elif data == "adm_welcome_text":
+        return await _show_welcome_text_menu(update, context)
     elif data == "adm_proof_link":
         current = await _get_current_setting(context, "proof_link")
         await query.edit_message_text(
@@ -838,6 +855,99 @@ async def _set_htu_text(update, context):
 
 
 # ═══════════════════════════════════════════════
+#  WELCOME TEXT MANAGEMENT
+# ═══════════════════════════════════════════════
+
+async def _show_welcome_text_menu(update, context):
+    """Show welcome text management sub-menu."""
+    settings_db = _get_settings_db(context)
+    current_text = await settings_db.get_setting("welcome_text")
+    if not current_text and not is_main_bot(context):
+        main_db = get_main_db(context)
+        current_text = await main_db.get_setting("welcome_text")
+    status = "✅ Custom text set" if current_text else "⚪ Using default"
+    keyboard = [
+        [InlineKeyboardButton("✏️ Edit / Set New", callback_data="adm_wt_edit")],
+        [InlineKeyboardButton("👁 Preview Current", callback_data="adm_wt_preview")],
+        [InlineKeyboardButton("🗑 Remove (Use Default)", callback_data="adm_wt_remove")],
+        [InlineKeyboardButton("🔙 Back", callback_data="adm_back")],
+    ]
+    query = update.callback_query
+    await query.edit_message_text(
+        f"📝 *Welcome Text Management*\n\nStatus: {status}\n\nSelect an option:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
+    return WELCOME_TEXT_MENU
+
+
+async def _welcome_text_menu_handler(update, context):
+    """Handle welcome text sub-menu button clicks."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "adm_wt_edit":
+        await query.edit_message_text(
+            "📝 *Set Welcome Text*\n\n"
+            "Send your new welcome text below.\n"
+            "You can use Telegram formatting:\n"
+            "• `*bold*` → *bold*\n"
+            "• `_italic_` → _italic_\n"
+            "• `` `code` `` → `code`\n"
+            "• Emojis supported ✨🎉💰\n\n"
+            "_Send /cancel to go back_",
+            parse_mode="Markdown",
+        )
+        return SET_WELCOME_TEXT
+
+    elif data == "adm_wt_preview":
+        from handlers.start import WELCOME_TEXT as DEFAULT_WELCOME
+        settings_db = _get_settings_db(context)
+        current_text = await settings_db.get_setting("welcome_text")
+        if not current_text and not is_main_bot(context):
+            main_db = get_main_db(context)
+            current_text = await main_db.get_setting("welcome_text")
+        preview = current_text if current_text else DEFAULT_WELCOME
+        source = "📝 Custom Text" if current_text else "⚪ Default Text"
+        try:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"👁 *Preview* ({source}):\n\n─────────────\n\n{preview}\n\n─────────────",
+                parse_mode="Markdown",
+            )
+        except Exception:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"👁 Preview ({source}):\n\n─────────────\n\n{preview}\n\n─────────────",
+            )
+        return await _show_welcome_text_menu(update, context)
+
+    elif data == "adm_wt_remove":
+        settings_db = _get_settings_db(context)
+        await settings_db.set_setting("welcome_text", "")
+        await query.answer("✅ Welcome text removed! Using default now.", show_alert=True)
+        return await _show_admin_menu(update, context)
+
+    elif data == "adm_back":
+        return await _show_admin_menu(update, context)
+
+    return WELCOME_TEXT_MENU
+
+
+async def _set_welcome_text_input(update, context):
+    """Receive and save new welcome text from admin."""
+    settings_db = _get_settings_db(context)
+    text = update.message.text
+    if not text or not text.strip():
+        await update.message.reply_text("❌ Text cannot be empty. Send your welcome text:")
+        return SET_WELCOME_TEXT
+    await settings_db.set_setting("welcome_text", text.strip())
+    await update.message.reply_text("✅ Welcome text updated successfully!")
+    return await _show_admin_menu(update, context)
+
+
+# ═══════════════════════════════════════════════
 #  VIEW USERS (Paginated) — Per-bot DB
 # ═══════════════════════════════════════════════
 
@@ -1196,6 +1306,8 @@ def get_admin_conversation_handler() -> ConversationHandler:
         MANAGE_ADMIN_MENU: [CallbackQueryHandler(_manage_admin_action, pattern=r"^adm_")],
         MANAGE_ADMIN_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, _manage_admin_input)],
         MANAGE_ADMIN_DURATION: [CallbackQueryHandler(_manage_admin_duration, pattern=r"^adm_dur_")],
+        WELCOME_TEXT_MENU: [CallbackQueryHandler(_welcome_text_menu_handler, pattern=r"^adm_wt_|^adm_back$")],
+        SET_WELCOME_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, _set_welcome_text_input)],
     }
 
     try:

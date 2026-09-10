@@ -196,6 +196,8 @@ class Database:
             "upi_id": "",
             "htu_video_id": "",
             "htu_text": "",
+            "htu_button_enabled": "1",
+            "welcome_text": "",
         }
         for key, value in defaults.items():
             existing = await self.get_setting(key)
