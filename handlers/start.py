@@ -114,11 +114,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             welcome_ids = json.loads(media_ids_json)
             if welcome_ids:
+                # Check if welcome media is from per-bot settings (native) or main fallback
+                per_bot_db = get_db(context)
+                per_bot_value = await per_bot_db.get_setting("welcome_media_ids")
+                is_from_main = not is_main_bot(context) and (not per_bot_value or per_bot_value == "[]")
+
                 media_group = []
                 for raw_id in welcome_ids:
                     translated_id = await get_translated_file_id(context, raw_id)
-                    # Skip un-cloned media on hosted bots (main bot file_ids won't work)
-                    if translated_id == raw_id and not is_main_bot(context):
+                    # Only skip un-cloned media when it came from main bot fallback
+                    if translated_id == raw_id and is_from_main:
                         logger.warning(f"Skipping un-cloned welcome media: {raw_id[:30]}...")
                         continue
                     if translated_id.startswith("photo:"):
@@ -197,13 +202,17 @@ async def product_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         should_disappear = await get_auto_disappear(context)
         sent_messages = []
 
+        # Check if products are from main DB (mirrored) or hosted bot's own DB
+        is_mirrored = not is_main_bot(context) and products_db is not get_db(context)
+
         media_group = []
         for raw_id in trial_ids:
             if not raw_id:
                 continue
             translated_id = await get_translated_file_id(context, raw_id)
-            # Skip un-cloned media on hosted bots (main bot file_ids won't work)
-            if translated_id == raw_id and not is_main_bot(context):
+            # Only skip un-cloned media when products are MIRRORED from main bot
+            # If hosted bot admin uploaded media directly, file_ids are already native
+            if translated_id == raw_id and is_mirrored:
                 logger.warning(f"Skipping un-cloned trial media: {raw_id[:30]}...")
                 continue
             if translated_id.startswith("photo:"):
