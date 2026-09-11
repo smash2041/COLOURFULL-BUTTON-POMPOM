@@ -454,10 +454,14 @@ async def _ep_select(update, context, override_product_id=None):
     status = "Active ✅" if product.get("is_active") else "Inactive ❌"
     style = product.get("button_style", "")
     style_label = {"primary": "🔵 Blue", "success": "🟢 Green", "danger": "🔴 Red"}.get(style, "⚪ Default")
+    # Escape user-provided fields to prevent Markdown parsing errors (e.g. underscores in @usernames)
+    safe_name = product['name'].replace("_", "\\_").replace("*", "\\*")
+    safe_desc = (product.get('description') or 'None').replace("_", "\\_").replace("*", "\\*")
+    safe_channel = (product.get('channel_link') or 'Not set').replace("_", "\\_").replace("*", "\\*")
     text = (
-        f"🎁 *Editing: {product['name']}*\n\n"
-        f"💰 Price: {format_price(product['price'])}\n📝 Description: {product.get('description') or 'None'}\n"
-        f"🎬 Trial: {trial_count}\n🔗 Channel: {product.get('channel_link') or 'Not set'}\n📊 Status: {status}\n🎨 Button Color: {style_label}\n\nSelect field:"
+        f"🎁 *Editing: {safe_name}*\n\n"
+        f"💰 Price: {format_price(product['price'])}\n📝 Description: {safe_desc}\n"
+        f"🎬 Trial: {trial_count}\n🔗 Channel: {safe_channel}\n📊 Status: {status}\n🎨 Button Color: {style_label}\n\nSelect field:"
     )
     keyboard = [
         [InlineKeyboardButton("📝 Name", callback_data="adm_ef_name")],
